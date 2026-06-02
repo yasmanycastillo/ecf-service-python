@@ -1,0 +1,3 @@
+SDK oficial en Python para integrar con ECF Service — plataforma de facturación electrónica e-CF certificada por la DGII para República Dominicana.
+
+Incluye cliente HTTP tipado con Pydantic, builder de payloads e-CF, constantes del dominio DGII (tipos de pago, indicadores de facturación, códigos de modificación), validación estructural de RNC/Cédula, y verificador de firmas webhook.
