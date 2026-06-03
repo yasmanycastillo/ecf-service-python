@@ -1,6 +1,6 @@
 # ECF Service SDK — Python
 
-SDK oficial para integrar con [ECF Service](https://ecfservice.do), plataforma de facturación electrónica e-CF certificada DGII para República Dominicana.
+SDK oficial para integrar con [ECF Service](https://api.emite.do), plataforma de facturación electrónica e-CF certificada DGII para República Dominicana.
 
 ## Instalación
 

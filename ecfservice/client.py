@@ -33,7 +33,7 @@ from ecfservice.models import (
     WebhookRotateSecretResponse,
 )
 
-_BASE_URL = "https://api.ecfservice.do/api/v1"
+_BASE_URL = "https://api.emite.do/api/v1"
 _DEFAULT_TIMEOUT = 30.0
 _DOWNLOAD_TIMEOUT = 120.0
 

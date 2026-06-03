@@ -7,7 +7,7 @@ name = "ecfservice"
 version = "0.2.0"
 description = "SDK Python oficial para ECF Service — Facturación Electrónica República Dominicana (DGII)"
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [{ name = "ECF Service SRL" }]
 keywords = ["ecf", "dgii", "facturacion-electronica", "dominican-republic"]
