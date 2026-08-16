@@ -1,6 +1,8 @@
-# ECF Service SDK — Python
+# emite.do SDK — Python
 
-SDK oficial para integrar con [ECF Service](https://api.emite.do), plataforma de facturación electrónica e-CF certificada DGII para República Dominicana.
+SDK oficial para [api.emite.do](https://api.emite.do). El mismo `POST /api/v1/ecf` cubre **E31–E47**.
+
+Docs: [https://docs.emite.do](https://docs.emite.do)
 
 ## Instalación
 
@@ -11,98 +13,154 @@ pip install ecfservice
 ## Inicio rápido
 
 ```python
+from datetime import date
 from ecfservice import ECFClient
 
-with ECFClient(api_key="ecf_tu_api_key") as client:
-    # Crear factura electrónica (e-CF tipo 31)
+with ECFClient(api_key="...") as client:
     doc = client.ecf.create(
         idempotency_key="INV-2026-0001",
         ecf_type="31",
+        environment="TesteCF",
         payload={
             "Encabezado": {
                 "Version": "1.0",
-                "IdDoc": {"eNCF": "E310000000001"},
-                "Emisor": {"RNC": "130478031", "RazonSocial": "Mi Empresa SRL"},
-                "Comprador": {"RNC": "123456789", "RazonSocial": "Cliente S.A."},
-                "Totales": {"MontoTotal": 1000.00, "TotalITBIS": 180.00},
+                "IdDoc": {
+                    "TipoeCF": "31",
+                    "eNCF": "E310000000001",
+                    "FechaVencimientoSecuencia": "31-12-2028",
+                    "IndicadorMontoGravado": 0,
+                    "TipoIngresos": "01",
+                    "TipoPago": "1",
+                },
+                "Emisor": {
+                    "RNCEmisor": "130478031",
+                    "RazonSocialEmisor": "Mi Empresa SRL",
+                    "DireccionEmisor": "AV. DEMO 1",
+                    "FechaEmision": date.today().strftime("%d-%m-%Y"),
+                },
+                "Comprador": {
+                    "RNCComprador": "131098193",
+                    "RazonSocialComprador": "Cliente SRL",
+                },
+                "Totales": {
+                    "MontoGravadoTotal": 10000.0,
+                    "MontoGravadoI1": 10000.0,
+                    "ITBIS1": 18,
+                    "TotalITBIS": 1800.0,
+                    "TotalITBIS1": 1800.0,
+                    "MontoTotal": 11800.0,
+                },
             },
             "DetallesItems": {
-                "Item": [{"NumeroLinea": 1, "Descripcion": "Servicio", "MontoItem": 1000.00}]
+                "Item": [
+                    {
+                        "NumeroLinea": 1,
+                        "IndicadorFacturacion": 1,
+                        "NombreItem": "SERVICIO DEMO",
+                        "IndicadorBienoServicio": 2,
+                        "CantidadItem": 1.0,
+                        "UnidadMedida": "43",
+                        "PrecioUnitarioItem": 10000.0,
+                        "MontoItem": 10000.0,
+                    }
+                ]
             },
         },
     )
-    print(f"Documento: {doc.public_id} — Estado: {doc.status}")
-
-    # Consultar estado
+    print(doc.public_id, doc.status)  # received — el veredicto fiscal llega después
     doc = client.ecf.get(doc.public_id)
-
-    # Descargar XML firmado
-    xml_bytes = client.ecf.download_xml(doc.public_id)
-
-    # Descargar PDF (Representación Impresa)
-    pdf_bytes = client.ecf.download_pdf(doc.public_id)
+    xml = client.ecf.download_xml(doc.public_id)
 ```
 
-## Perfil de empresa
+`ecf_type` acepta `31` `32` `33` `34` `41` `43` `44` `45` `46` `47`. Cambia `TipoeCF` y el e-NCF (`E32…`, `E47…`) al tipo.
+
+Misma `idempotency_key` → `200` del original (el payload no se compara).
+
+## Builder
+
+```python
+from ecfservice import ECFPayloadBuilder
+
+payload = (
+    ECFPayloadBuilder(ecf_type="31")
+    .id_doc(eNCF="E310000000001", FechaVencimientoSecuencia="31-12-2028")
+    .emisor(RNCEmisor="130478031", RazonSocialEmisor="Mi Empresa SRL", FechaEmision="15-08-2026")
+    .comprador(RNCComprador="131098193", RazonSocialComprador="Cliente SRL")
+    .totales(MontoTotal=11800.0, TotalITBIS=1800.0)
+    .add_item({"NumeroLinea": 1, "NombreItem": "Servicio", "MontoItem": 10000.0})
+    .build()
+)
+```
+
+Pone `TipoeCF` (no `TipoEcf`). `FechaEmision` va en `Emisor`.
+
+## Empresa, rangos, inbox
 
 ```python
 profile = client.client.company()
-print(f"RNC: {profile.rnc} — Nombre: {profile.name}")
+seqs = client.client.sequences(active_only=True)
+inbox = client.client.inbox(acked=False)
+client.client.ack_inbox(inbox.items[0].public_id)
 ```
 
-## Secuencias eNCF
+Los rangos se listan; no se crean por API.
+
+## ACECF y ANECF
 
 ```python
-result = client.client.sequences(active_only=True)
-for seq in result.items:
-    print(f"Tipo {seq.ecf_type}: {seq.next_sequence} de {seq.range_end} — Disponibles: {seq.available}")
+client.ecf.submit_acecf(
+    idempotency_key="ac-001",
+    encf="E310000000001",
+    rnc_emisor="130478031",
+    rnc_comprador="131098193",
+    fecha_emision="15-08-2026",
+    monto_total="11800.00",
+    estado="1",
+)
+client.ecf.cancel_sequences(
+    idempotency_key="an-001",
+    cancellations=[{
+        "ecf_type": "31",
+        "sequence_from": "E310000000010",
+        "sequence_to": "E310000000012",
+        "quantity": 3,
+    }],
+)
 ```
 
 ## Webhooks
 
+Hoy el service notifica `accepted`, `conditionally_accepted` y `rejected`.
+
 ```python
-# Crear webhook
 wh = client.client.create_webhook(
-    url="https://mi-app.com/webhooks/ecf",
-    events=["accepted", "rejected"],
+    url="https://mi-app.example/webhooks/ecf",
+    events=["accepted", "conditionally_accepted", "rejected"],
 )
-print(f"Secreto (guardar ahora): {wh.secret}")  # Solo se muestra una vez
-
-# Verificar firma entrante
 from ecfservice.webhook import verify_webhook_signature
-
-is_valid = verify_webhook_signature(
-    payload=request.body,
-    signature=request.headers["X-ECF-Signature"],
-    secret=wh_secret,
-)
+ok = verify_webhook_signature(request_body, request.headers["X-ECF-Signature"], wh.secret)
 ```
 
-## Consultas DGII (públicas, sin API key)
+## Salud y padrón (sin API key)
 
 ```python
-from ecfservice import ECFClient
-
-client = ECFClient(api_key="any", base_url="http://localhost:8000/api/v1")
-contributor = client.dgii.rnc("130478031")
-print(f"Nombre: {contributor.razon_social} — Estado: {contributor.estado}")
+client = ECFClient()  # key opcional
+print(client.health().status)
+print(client.dgii.rnc("130478031").razon_social)
 ```
 
-## Manejo de errores
+## Errores
+
+El service responde `{ "detail": "..." }` (FastAPI).
 
 ```python
-from ecfservice import ECFClient, ECFAuthError, ECFValidationError, ECFNotFoundError
-
-with ECFClient(api_key="ecf_...") as client:
-    try:
-        doc = client.ecf.create(...)
-    except ECFAuthError:
-        print("API key inválida o expirada")
-    except ECFValidationError as e:
-        print(f"Error de validación: {e.detail}")
-    except ECFNotFoundError:
-        print("Recurso no encontrado")
+from ecfservice import ECFAuthError, ECFValidationError, ECFConflictError, ECFNotFoundError
 ```
+
+- `401` → `ECFAuthError`
+- `404` → `ECFNotFoundError`
+- `409` e-NCF usado → `ECFConflictError`
+- `422` payload / rango / P12 / header faltante → `ECFValidationError`
 
 ## Licencia
 

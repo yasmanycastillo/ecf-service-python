@@ -21,12 +21,14 @@ class ECFType(str, Enum):
 class ECFState(str, Enum):
     RECEIVED = "received"
     DEFERRED = "deferred"
+    VALIDATED = "validated"
     SIGNED = "signed"
     SUBMITTED = "submitted"
     ACCEPTED = "accepted"
     CONDITIONALLY_ACCEPTED = "conditionally_accepted"
     REJECTED = "rejected"
     FAILED = "failed"
+    CANCELLED = "cancelled"
     CONTINGENCY = "contingency"
     INCAPACITY = "incapacity"
 

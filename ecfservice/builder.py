@@ -34,18 +34,18 @@ class ECFPayloadBuilder:
 
     def id_doc(self, **fields: Any) -> Self:
         self._id_doc.update(fields)
-        if self._ecf_type and "TipoEcf" not in self._id_doc:
-            self._id_doc["TipoEcf"] = self._ecf_type
+        if self._ecf_type and "TipoeCF" not in self._id_doc:
+            self._id_doc["TipoeCF"] = self._ecf_type
         return self
 
     def emisor(self, **fields: Any) -> Self:
-        self._emisor.update(fields)
+        self._emisor.update(_alias_emisor(fields))
         return self
 
     def comprador(self, **fields: Any) -> Self:
         if self._comprador is None:
             self._comprador = {}
-        self._comprador.update(fields)
+        self._comprador.update(_alias_comprador(fields))
         return self
 
     def totales(self, **fields: Any) -> Self:
@@ -53,7 +53,10 @@ class ECFPayloadBuilder:
         return self
 
     def add_item(self, item: dict[str, Any]) -> Self:
-        self._items.append(item)
+        mapped = dict(item)
+        if "NombreItem" not in mapped and "Descripcion" in mapped:
+            mapped["NombreItem"] = mapped.pop("Descripcion")
+        self._items.append(mapped)
         return self
 
     def informacion_referencia(self, **fields: Any) -> Self:
@@ -91,3 +94,23 @@ class ECFPayloadBuilder:
         if self._descuentos is not None:
             result["DescuentosORecargos"] = self._descuentos
         return result
+
+
+_EMISOR_ALIASES = {
+    "RNC": "RNCEmisor",
+    "RazonSocial": "RazonSocialEmisor",
+    "Direccion": "DireccionEmisor",
+    "Correo": "CorreoEmisor",
+}
+_COMPRADOR_ALIASES = {
+    "RNC": "RNCComprador",
+    "RazonSocial": "RazonSocialComprador",
+}
+
+
+def _alias_emisor(fields: dict[str, Any]) -> dict[str, Any]:
+    return {_EMISOR_ALIASES.get(k, k): v for k, v in fields.items()}
+
+
+def _alias_comprador(fields: dict[str, Any]) -> dict[str, Any]:
+    return {_COMPRADOR_ALIASES.get(k, k): v for k, v in fields.items()}

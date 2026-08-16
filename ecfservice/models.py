@@ -218,3 +218,52 @@ class DGIIContributor(BaseModel):
     actividad_economica: str | None = None
     estado: str | None = None
     regimen_pagos: str | None = None
+
+
+class InboxItem(BaseModel):
+    public_id: str
+    encf: str | None = None
+    ecf_type: str
+    environment: str
+    status: str
+    rnc_emisor: str | None = None
+    rnc_comprador: str | None = None
+    razon_social_emisor: str | None = None
+    monto_total: str | None = None
+    fecha_emision: str | None = None
+    acked: bool
+    xml_available: bool
+    arecf_available: bool
+    created_at: datetime
+
+
+class InboxListResponse(BaseModel):
+    items: list[InboxItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class InboxAckResponse(BaseModel):
+    public_id: str
+    acked: bool
+    acked_at: datetime
+
+
+class AcecfResponse(BaseModel):
+    public_id: str
+    status: str
+    message: str
+    dgii_response: dict[str, Any] | None = None
+
+
+class AnecfResponse(BaseModel):
+    public_id: str
+    status: str
+    message: str
+
+
+class HealthStatus(BaseModel):
+    status: str
+    checks: dict[str, Any] | None = None
+    version: str | None = None

@@ -15,6 +15,8 @@ from ecfservice.exceptions import (
     ECFValidationError,
 )
 from ecfservice.models import (
+    AcecfResponse,
+    AnecfResponse,
     ArtifactType,
     CertificateInfo,
     ClientDocument,
@@ -23,7 +25,9 @@ from ecfservice.models import (
     DGIIContributor,
     ECFDocument,
     EcfListResponse,
-    SequenceInfo,
+    HealthStatus,
+    InboxAckResponse,
+    InboxListResponse,
     SequenceListResponse,
     SubmissionMode,
     WebhookCreateResponse,
@@ -53,20 +57,26 @@ class ECFClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | None = None,
         base_url: str = _BASE_URL,
         timeout: float = _DEFAULT_TIMEOUT,
     ):
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        headers = {"X-API-Key": api_key} if api_key else {}
         self._http = httpx.Client(
             base_url=self._base_url,
-            headers={"X-API-Key": api_key},
+            headers=headers,
             timeout=timeout,
         )
         self.ecf = _ECFResource(self._http)
         self.client = _ClientResource(self._http)
         self.dgii = _DGIIResource(self._http)
+
+    def health(self) -> HealthStatus:
+        resp = self._http.get("/health")
+        resp.raise_for_status()
+        return HealthStatus.model_validate(resp.json())
 
     def close(self) -> None:
         self._http.close()
@@ -179,13 +189,68 @@ class _ECFResource(_BaseResource):
         resp = self._request("GET", "/ecf/states")
         return resp.json()
 
-    def status_public(self, external_id: str, *, company_rnc: str) -> dict[str, Any]:
+    def status_public(self, external_id: str, *, company_rnc: str) -> ECFDocument:
         resp = self._request(
             "GET",
             f"/ecf/status-public/{external_id}",
             params={"company_rnc": company_rnc},
         )
-        return resp.json()
+        return ECFDocument.model_validate(resp.json())
+
+    def submit_acecf(
+        self,
+        *,
+        idempotency_key: str,
+        encf: str,
+        rnc_emisor: str,
+        rnc_comprador: str,
+        fecha_emision: str,
+        monto_total: str,
+        estado: str,
+        detalle_motivo_rechazo: str | None = None,
+        fecha_hora_aprobacion: str | None = None,
+        environment: str | None = None,
+        ecf_type: str = "31",
+    ) -> AcecfResponse:
+        data: dict[str, Any] = {
+            "idempotency_key": idempotency_key,
+            "encf": encf,
+            "rnc_emisor": rnc_emisor,
+            "rnc_comprador": rnc_comprador,
+            "fecha_emision": fecha_emision,
+            "monto_total": monto_total,
+            "estado": estado,
+            "ecf_type": ecf_type,
+        }
+        if detalle_motivo_rechazo:
+            data["detalle_motivo_rechazo"] = detalle_motivo_rechazo
+        if fecha_hora_aprobacion:
+            data["fecha_hora_aprobacion"] = fecha_hora_aprobacion
+        if environment:
+            data["environment"] = environment
+        resp = self._request("POST", "/ecf/acecf/submit", json=data)
+        return AcecfResponse.model_validate(resp.json())
+
+    def acecf_outbound(self, **fields: Any) -> AcecfResponse:
+        resp = self._request("POST", "/ecf/acecf/outbound", json=fields)
+        return AcecfResponse.model_validate(resp.json())
+
+    def acecf_inbound(self, **fields: Any) -> AcecfResponse:
+        resp = self._request("POST", "/ecf/acecf/inbound", json=fields)
+        return AcecfResponse.model_validate(resp.json())
+
+    def cancel_sequences(
+        self,
+        *,
+        idempotency_key: str,
+        cancellations: list[dict[str, Any]],
+    ) -> AnecfResponse:
+        resp = self._request(
+            "POST",
+            "/ecf/cancellations",
+            json={"idempotency_key": idempotency_key, "cancellations": cancellations},
+        )
+        return AnecfResponse.model_validate(resp.json())
 
 
 class _ClientResource(_BaseResource):
@@ -361,6 +426,58 @@ class _ClientResource(_BaseResource):
     def delete_webhook(self, public_id: str) -> None:
         self._request("DELETE", f"/client/webhooks/{public_id}")
 
+    def inbox(
+        self,
+        *,
+        acked: bool | None = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> InboxListResponse:
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if acked is not None:
+            params["acked"] = str(acked).lower()
+        resp = self._request("GET", "/client/inbox", params=params)
+        return InboxListResponse.model_validate(resp.json())
+
+    def ack_inbox(self, public_id: str) -> InboxAckResponse:
+        resp = self._request("POST", f"/client/inbox/{public_id}/ack")
+        return InboxAckResponse.model_validate(resp.json())
+
+    def download_inbox_xml(self, public_id: str) -> bytes:
+        resp = self._request("GET", f"/client/inbox/{public_id}/xml")
+        return resp.content
+
+    def download_inbox_arecf(self, public_id: str) -> bytes:
+        resp = self._request("GET", f"/client/inbox/{public_id}/arecf")
+        return resp.content
+
+    def list_artifacts(self, public_id: str) -> dict[str, Any]:
+        resp = self._request("GET", f"/client/documents/{public_id}/artifacts")
+        return resp.json()
+
+    def audit_export(
+        self,
+        *,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> bytes:
+        params: dict[str, Any] = {}
+        if date_from:
+            params["date_from"] = date_from.isoformat()
+        if date_to:
+            params["date_to"] = date_to.isoformat()
+        resp = self._request(
+            "GET",
+            "/client/audit-export",
+            params=params or None,
+            timeout=_DOWNLOAD_TIMEOUT,
+        )
+        return resp.content
+
+    def test_webhook(self, public_id: str) -> dict[str, Any]:
+        resp = self._request("POST", f"/client/webhooks/{public_id}/test")
+        return resp.json()
+
     def webhook_deliveries(
         self,
         public_id: str,
@@ -385,4 +502,20 @@ class _DGIIResource(_BaseResource):
 
     def directory(self, *, rnc: str) -> dict[str, Any]:
         resp = self._request("GET", "/dgii/directory", params={"rnc": rnc})
+        return resp.json()
+
+    def status_services(self) -> dict[str, Any]:
+        resp = self._request("GET", "/dgii/status/services")
+        return resp.json()
+
+    def status_maintenance(self) -> dict[str, Any]:
+        resp = self._request("GET", "/dgii/status/maintenance")
+        return resp.json()
+
+    def status_environment(self, environment: str) -> dict[str, Any]:
+        resp = self._request("GET", f"/dgii/status/environment/{environment}")
+        return resp.json()
+
+    def status_refresh(self) -> dict[str, Any]:
+        resp = self._request("GET", "/dgii/status/refresh")
         return resp.json()
