@@ -2,7 +2,7 @@
 
 SDK oficial para [api.emite.do](https://api.emite.do). El mismo `POST /api/v1/ecf` cubre **E31–E47**.
 
-Docs: [https://docs.emite.do](https://docs.emite.do)
+Guía: [docs.emite.do/sdks/python](https://docs.emite.do/sdks/python) · API: [docs.emite.do](https://docs.emite.do)
 
 ## Instalación
 
@@ -161,6 +161,12 @@ from ecfservice import ECFAuthError, ECFValidationError, ECFConflictError, ECFNo
 - `404` → `ECFNotFoundError`
 - `409` e-NCF usado → `ECFConflictError`
 - `422` payload / rango / P12 / header faltante → `ECFValidationError`
+
+## Qué no hace este SDK
+
+- No valida el XSD DGII (lo hace el service).
+- No crea rangos e-NCF; solo los lista.
+- El `201` de `create` es `received`, no el veredicto fiscal. Usa webhooks o `client.ecf.get`.
 
 ## Licencia
 

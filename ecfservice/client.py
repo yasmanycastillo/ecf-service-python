@@ -61,6 +61,13 @@ class ECFClient:
         base_url: str = _BASE_URL,
         timeout: float = _DEFAULT_TIMEOUT,
     ):
+        """Crea el cliente.
+
+        Args:
+            api_key: Valor de ``X-API-Key``. Opcional para ``health()`` y ``dgii``.
+            base_url: Base de la API v1 (default ``https://api.emite.do/api/v1``).
+            timeout: Timeout HTTP en segundos. Las descargas de PDF/ZIP usan 120 s.
+        """
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         headers = {"X-API-Key": api_key} if api_key else {}
@@ -74,6 +81,7 @@ class ECFClient:
         self.dgii = _DGIIResource(self._http)
 
     def health(self) -> HealthStatus:
+        """GET ``/health``. ``ok`` o ``degraded`` son aceptables para operar."""
         resp = self._http.get("/health")
         resp.raise_for_status()
         return HealthStatus.model_validate(resp.json())
@@ -136,6 +144,16 @@ class _ECFResource(_BaseResource):
         mode: SubmissionMode = SubmissionMode.ONLINE,
         scheduled_for: datetime | None = None,
     ) -> ECFDocument:
+        """POST ``/ecf``. Devuelve ``received``; el veredicto fiscal llega después.
+
+        Args:
+            idempotency_key: Clave estable por documento. La misma key
+                devuelve el original (el payload no se compara).
+            ecf_type: ``31``…``47``.
+            payload: JSON DGII (``Encabezado`` / ``DetallesItems``).
+            environment: ``TesteCF``, ``CerteCF`` o ``ecf``.
+            mode: ``online`` (default) o ``deferred``.
+        """
         data: dict[str, Any] = {
             "idempotency_key": idempotency_key,
             "ecf_type": ecf_type,
@@ -152,6 +170,7 @@ class _ECFResource(_BaseResource):
         return ECFDocument.model_validate(resp.json())
 
     def get(self, public_id: str) -> ECFDocument:
+        """GET ``/ecf/{public_id}``."""
         resp = self._request("GET", f"/ecf/{public_id}")
         return ECFDocument.model_validate(resp.json())
 
@@ -162,6 +181,7 @@ class _ECFResource(_BaseResource):
         limit: int = 50,
         offset: int = 0,
     ) -> EcfListResponse:
+        """GET ``/ecf`` paginado. ``status`` es el valor API (``accepted``, no el enum)."""
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if status:
             params["status"] = status
@@ -169,14 +189,17 @@ class _ECFResource(_BaseResource):
         return EcfListResponse.model_validate(resp.json())
 
     def download_xml(self, public_id: str) -> bytes:
+        """XML firmado."""
         resp = self._request("GET", f"/ecf/{public_id}/xml")
         return resp.content
 
     def download_rfce(self, public_id: str) -> bytes:
+        """RFCE (resumen). Solo aplica a E32 bajo el umbral."""
         resp = self._request("GET", f"/ecf/{public_id}/rfce")
         return resp.content
 
     def download_pdf(self, public_id: str, *, refresh: bool = False) -> bytes:
+        """Representación impresa (PDF). ``refresh=True`` regenera la RI."""
         params = {"refresh": "true"} if refresh else None
         resp = self._request("GET", f"/ecf/{public_id}/pdf", params=params, timeout=_DOWNLOAD_TIMEOUT)
         return resp.content
@@ -212,6 +235,7 @@ class _ECFResource(_BaseResource):
         environment: str | None = None,
         ecf_type: str = "31",
     ) -> AcecfResponse:
+        """POST ``/ecf/acecf/submit``. ``estado`` es ``1`` (acepta) o ``2`` (rechaza)."""
         data: dict[str, Any] = {
             "idempotency_key": idempotency_key,
             "encf": encf,
@@ -232,10 +256,12 @@ class _ECFResource(_BaseResource):
         return AcecfResponse.model_validate(resp.json())
 
     def acecf_outbound(self, **fields: Any) -> AcecfResponse:
+        """POST ``/ecf/acecf/outbound``. Campos del contrato AcecfInboundRequest."""
         resp = self._request("POST", "/ecf/acecf/outbound", json=fields)
         return AcecfResponse.model_validate(resp.json())
 
     def acecf_inbound(self, **fields: Any) -> AcecfResponse:
+        """POST ``/ecf/acecf/inbound``. Recibe un ACECF de otro facturador."""
         resp = self._request("POST", "/ecf/acecf/inbound", json=fields)
         return AcecfResponse.model_validate(resp.json())
 
@@ -245,6 +271,7 @@ class _ECFResource(_BaseResource):
         idempotency_key: str,
         cancellations: list[dict[str, Any]],
     ) -> AnecfResponse:
+        """POST ``/ecf/cancellations`` (ANECF). Hasta 10 rangos."""
         resp = self._request(
             "POST",
             "/ecf/cancellations",
@@ -258,6 +285,7 @@ class _ClientResource(_BaseResource):
 
     # -- Company --
     def company(self) -> CompanyProfile:
+        """GET ``/client/company``."""
         resp = self._request("GET", "/client/company")
         return CompanyProfile.model_validate(resp.json())
 
@@ -290,6 +318,7 @@ class _ClientResource(_BaseResource):
         ecf_type: str | None = None,
         active_only: bool = False,
     ) -> SequenceListResponse:
+        """Lista rangos e-NCF. El contrato v1 no crea rangos."""
         params: dict[str, Any] = {"active_only": str(active_only).lower()}
         if environment:
             params["environment"] = environment
@@ -433,6 +462,7 @@ class _ClientResource(_BaseResource):
         limit: int = 50,
         offset: int = 0,
     ) -> InboxListResponse:
+        """e-CF recibidos como comprador. No son tus emisiones."""
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if acked is not None:
             params["acked"] = str(acked).lower()
@@ -497,6 +527,7 @@ class _DGIIResource(_BaseResource):
     """Consultas públicas al padrón DGII (no requieren API key)."""
 
     def rnc(self, rnc: str) -> DGIIContributor:
+        """GET ``/dgii/rnc/{rnc}``. No requiere API key."""
         resp = self._request("GET", f"/dgii/rnc/{rnc}")
         return DGIIContributor.model_validate(resp.json())
 

@@ -26,6 +26,11 @@ dependencies = [
     "python-stdnum>=2.0",
 ]
 
+[project.urls]
+Documentation = "https://docs.emite.do/sdks/python"
+Homepage = "https://docs.emite.do"
+Repository = "https://github.com/yasmanycastillo/ecf-service-python"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "respx>=0.21"]
 
