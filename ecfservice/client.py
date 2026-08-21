@@ -540,7 +540,23 @@ class _DGIIResource(_BaseResource):
         return resp.json()
 
     def status_maintenance(self) -> dict[str, Any]:
+        """Ventanas programadas + ``windows`` normalizadas y ``recommend_contingency``."""
         resp = self._request("GET", "/dgii/status/maintenance")
+        return resp.json()
+
+    def status(self) -> dict[str, Any]:
+        """Snapshot: servicios, ambientes, ventanas e impacto por ambiente."""
+        resp = self._request("GET", "/dgii/status")
+        return resp.json()
+
+    def status_impact(self, environment: str | None = None) -> dict[str, Any]:
+        """Si hay que pasar a contingencia (ventana activa o caída no programada)."""
+        path = (
+            f"/dgii/status/impact/{environment}"
+            if environment
+            else "/dgii/status/impact"
+        )
+        resp = self._request("GET", path)
         return resp.json()
 
     def status_environment(self, environment: str) -> dict[str, Any]:
