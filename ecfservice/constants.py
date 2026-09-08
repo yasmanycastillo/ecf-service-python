@@ -39,6 +39,33 @@ class Environment(str, Enum):
     PROD = "ecf"
 
 
+class NoticeCategory(str, Enum):
+    DGII_INCIDENT = "dgii_incident"
+    EMITE_INCIDENT = "emite_incident"
+    ANNOUNCEMENT = "announcement"
+    ACTION_REQUIRED = "action_required"
+
+
+class NoticeSeverity(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
+class NoticeState(str, Enum):
+    DRAFT = "draft"
+    SCHEDULED = "scheduled"
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    RESOLVED = "resolved"
+    WITHDRAWN = "withdrawn"
+
+
+class NoticeOperation(str, Enum):
+    UPSERT = "upsert"
+    REVOKE = "revoke"
+
+
 class SubmissionMode(str, Enum):
     ONLINE = "online"
     DEFERRED = "deferred"

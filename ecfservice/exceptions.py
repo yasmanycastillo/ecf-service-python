@@ -23,4 +23,4 @@ class ECFValidationError(ECFError):
 
 
 class ECFConflictError(ECFError):
-    """Conflicto de unicidad (409)."""
+    """Conflicto (409): unicidad, idempotencia o cursor de avisos vencido."""

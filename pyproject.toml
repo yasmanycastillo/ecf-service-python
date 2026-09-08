@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ecfservice"
-version = "0.3.0"
+version = "0.4.0"
 description = "SDK Python oficial para emite.do — e-CF ante la DGII"
 readme = "README.md"
 license = {text = "MIT"}

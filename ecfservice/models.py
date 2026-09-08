@@ -12,6 +12,10 @@ from ecfservice.constants import (
     ECFState,
     ECFType,
     Environment,
+    NoticeCategory,
+    NoticeOperation,
+    NoticeSeverity,
+    NoticeState,
     SubmissionMode,
 )
 
@@ -267,3 +271,37 @@ class HealthStatus(BaseModel):
     status: str
     checks: dict[str, Any] | None = None
     version: str | None = None
+
+
+class ServiceNotice(BaseModel):
+    """Aviso de comunicaciones Emite (superficie de consumidor, sin audiencia)."""
+
+    id: str
+    revision: int | None = None
+    category: NoticeCategory | str | None = None
+    severity: NoticeSeverity | str | None = None
+    title: str | None = None
+    body: str | None = None
+    state: NoticeState | str | None = None
+    source: str | None = None
+    environments: list[str] = Field(default_factory=list)
+    starts_at: datetime | None = None
+    expires_at: datetime | None = None
+    resolved_at: datetime | None = None
+    resolution_note: str | None = None
+    updated_at: datetime | None = None
+
+
+class NoticeChange(BaseModel):
+    event_id: str
+    operation: NoticeOperation | str
+    company_id: str
+    notice: ServiceNotice
+
+
+class NoticeFeedResponse(BaseModel):
+    schema_version: int = 1
+    changes: list[NoticeChange]
+    next_cursor: str | None = None
+    has_more: bool = False
+    checked_at: datetime | str | None = None

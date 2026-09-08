@@ -28,7 +28,9 @@ from ecfservice.models import (
     HealthStatus,
     InboxAckResponse,
     InboxListResponse,
+    NoticeFeedResponse,
     SequenceListResponse,
+    ServiceNotice,
     SubmissionMode,
     WebhookCreateResponse,
     WebhookDelivery,
@@ -79,6 +81,7 @@ class ECFClient:
         self.ecf = _ECFResource(self._http)
         self.client = _ClientResource(self._http)
         self.dgii = _DGIIResource(self._http)
+        self.notices = _NoticesResource(self._http)
 
     def health(self) -> HealthStatus:
         """GET ``/health``. ``ok`` o ``degraded`` son aceptables para operar."""
@@ -118,6 +121,8 @@ class _BaseResource:
 
         detail = body if isinstance(body, dict) else {"detail": str(body)}
         msg = detail.get("detail", str(body))
+        if isinstance(msg, dict):
+            msg = msg.get("message") or msg.get("code") or str(msg)
 
         if resp.status_code == 401:
             raise ECFAuthError(msg, status_code=resp.status_code, detail=detail)
@@ -566,3 +571,25 @@ class _DGIIResource(_BaseResource):
     def status_refresh(self) -> dict[str, Any]:
         resp = self._request("GET", "/dgii/status/refresh")
         return resp.json()
+
+
+class _NoticesResource(_BaseResource):
+    """Comunicaciones Emite (consumidor). Distinto del calendario DGII."""
+
+    def changes(self, *, cursor: str | None = None, limit: int = 100) -> NoticeFeedResponse:
+        """GET ``/notices/changes``.
+
+        Sin cursor: bootstrap de avisos vigentes. Un feed vacío no resuelve
+        nada. ``409`` ``cursor_expired`` exige repetir bootstrap y retirar
+        réplicas ausentes **sin** marcarlas resueltas.
+        """
+        params: dict[str, Any] = {"limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+        resp = self._request("GET", "/notices/changes", params=params)
+        return NoticeFeedResponse.model_validate(resp.json())
+
+    def get(self, notice_id: str) -> ServiceNotice:
+        """GET ``/notices/{id}``. Misma autorización que el feed; sin audiencia."""
+        resp = self._request("GET", f"/notices/{notice_id}")
+        return ServiceNotice.model_validate(resp.json())

@@ -105,6 +105,20 @@ client.client.ack_inbox(inbox.items[0].public_id)
 
 Los rangos se listan; no se crean por API.
 
+## Comunicaciones Emite
+
+Feed de avisos de soporte (`GET /notices/changes`). No es el calendario DGII
+(`client.dgii.status_maintenance()`). Un feed vacío no resuelve nada; un
+`409 cursor_expired` exige bootstrap de nuevo y retirar réplicas ausentes
+sin marcarlas resueltas.
+
+```python
+feed = client.notices.changes()  # bootstrap
+cursor = feed.next_cursor
+later = client.notices.changes(cursor=cursor)
+notice = client.notices.get(feed.changes[0].notice.id)
+```
+
 ## ACECF y ANECF
 
 ```python
